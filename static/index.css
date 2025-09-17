@@ -1,0 +1,95 @@
+/* 全局样式 */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #e6f2ff; /* 浅蓝背景 */
+    overflow: hidden;
+}
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* 导航栏 */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #ffffff;
+    padding: 0 20px;
+    height: 60px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.nav-left, .nav-right {
+    display: flex;
+    align-items: center;
+}
+.nav-left a, .nav-right a, .nav-right button {
+    margin-left: 15px;
+    margin-right: 15px;
+    color: #007bff;
+    font-weight: bold;
+}
+.nav-right button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.nav-right button:hover {
+    background-color: #0056b3;
+}
+
+/* 搜索框 */
+.search-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 20px 0;
+}
+.search-container input[type="text"] {
+    width: 50%;
+    padding: 10px 15px;
+    border: 1px solid #ccc;
+    border-radius: 25px;
+    font-size: 16px;
+}
+
+/* 场馆瀑布流 */
+.card-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    max-height: calc(100vh - 140px); /* 减去导航栏和搜索框高度 */
+    overflow-y: auto;
+}
+.card {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.card img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+}
+.card-body {
+    padding: 10px 15px;
+    flex: 1;
+}
+.card-body h3 {
+    margin: 0 0 10px 0;
+    font-size: 18px;
+    color: #007bff;
+}
+.card-body p {
+    margin: 0;
+    color: #555;
+    font-size: 14px;
+}

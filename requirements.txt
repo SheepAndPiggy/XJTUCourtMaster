@@ -1,0 +1,6 @@
+apscheduler
+numpy
+opencv-python
+cryptography
+requests
+flask

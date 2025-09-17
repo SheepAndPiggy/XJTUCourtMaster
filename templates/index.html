@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>体育场馆预约</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='index.css') }}">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <div class="navbar">
+        <div class="nav-left">
+            <a href="/index">主页</a>
+            <a href="/lists">收藏场次列表</a>
+        </div>
+        <div class="nav-right">
+            <span id="username">{{ username }}</span>
+            <form method="GET" action="/logout" style="display:inline;">
+                <button type="submit">退出</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 搜索框 -->
+    <div class="search-container">
+        <input type="text" placeholder="搜索场馆..." id="search-box">
+    </div>
+
+    <!-- 场馆卡片瀑布流 -->
+    <div class="card-container" id="card-container">
+        <!-- 示例卡片 -->
+        {% for venue in venues %}
+        <a href="{{ url_for('venue_detail', venue_id=venue.court_id, date='') }}" class="card">
+            <img src="{{ venue.image }}" alt="{{ venue.court_name }}">
+            <div class="card-body">
+                <h3>{{ venue.court_name }}</h3>
+                <p>{{ venue.address }}</p>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <script>
+        // 搜索过滤
+        const searchBox = document.getElementById("search-box");
+        const cardContainer = document.getElementById("card-container");
+
+        searchBox.addEventListener("input", function() {
+            const query = this.value.toLowerCase();
+            const cards = cardContainer.getElementsByClassName("card");
+            for (let card of cards) {
+                const name = card.querySelector("h3").textContent.toLowerCase();
+                card.style.display = name.includes(query) ? "flex" : "none";
+            }
+        });
+    </script>
+</body>
+</html>

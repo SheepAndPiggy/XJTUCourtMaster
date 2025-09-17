@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ venue.court_name }} - 详情页</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='venue_detail.css') }}">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <div class="navbar">
+        <div class="nav-left">
+            <a href="/index">主页</a>
+            <a href="/lists">收藏场次列表</a>
+        </div>
+        <div class="nav-right">
+            <span id="username">{{ username }}</span>
+            <form method="GET" action="/logout" style="display:inline;">
+                <button type="submit">退出</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 场馆信息 -->
+    <div class="venue-header">
+        <img src="{{ venue.image }}" alt="{{ venue.court_name }}">
+        <div class="venue-info">
+            <h2>{{ venue.court_name }}</h2>
+            <p><strong>地址：</strong>{{ venue.address }}</p>
+            <p><strong>备注：</strong>{{ venue.memo }}</p>
+        </div>
+    </div>
+
+    <!-- 日期切换 -->
+    <div class="date-selector">
+        <button onclick="changeDate(-1)">前一天</button>
+        <span id="selected-date">{{ current_date }}</span>
+        <button onclick="changeDate(1)">后一天</button>
+    </div>
+
+    <!-- 球场表格 -->
+    <table class="court-table">
+        <thead>
+            <tr>
+                <th>时间段</th>
+                {% for court in courts %}
+                <th>{{ court }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for time, row in schedule.items() %}
+            <tr>
+                <td>{{ time }}</td>
+                {% for court in courts %}
+                    <td class="{% if row[court]['status'] %}available{% else %}unavailable{% endif %}"
+                        data-court="{{ court_id }}"
+                        data-time="{{ time }}"
+                        data-id="{{ row[court]['field_id'] }}"
+                        data-sid="{{ row[court]['stock_id'] }}"
+                        data-open="{{ row[court]['status'] }}"
+                        data-name="{{ court }}"
+                        data-date = "{{ row[court]['date'] }}">
+                        {% if row[court]['status'] %}✔{% else %}✖{% endif %}
+                    </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        function changeDate(offset) {
+        let currentDate = new Date(document.getElementById("selected-date").innerText);
+        currentDate.setDate(currentDate.getDate() + offset);
+
+        // 格式化成 YYYY-MM-DD
+        let year = currentDate.getFullYear();
+        let month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        let day = String(currentDate.getDate()).padStart(2, '0');
+        let newDate = `${year}-${month}-${day}`;
+
+        // 刷新页面，跳转到带新日期的 URL
+        let venueId = parseInt("{{ venue.court_id }}", 10);
+        window.location.href = `/venue/${venueId}/${newDate}`;
+    }
+
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("td.available, td.unavailable").forEach(td => {
+        td.addEventListener("click", function () {
+            // 判断是否开放
+            if (this.dataset.open !== "1") {
+                return; // 如果不是开放状态，直接无事发生
+            }
+
+            const court = this.dataset.court;
+            const time = this.dataset.time;
+            const id = this.dataset.id;
+            const sid = this.dataset.sid;
+            const date = this.dataset.date; // 原始日期保留
+            const name = this.dataset.name;
+
+            // 弹出输入框询问预定日期
+            const run_date = prompt(`请输入您要预定 ${name} 在 ${time} 的日期（格式 YYYY-MM-DD hh:mm:ss，current为现在时间5秒后）：`, "");
+            if (!run_date) {
+                return; // 用户取消输入
+            }
+
+            fetch("/reserve", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    court_id: court,
+                    time: time,
+                    field_id: id,
+                    stock_id: sid,
+                    date: date,
+                    run_date: run_date,
+                    name: name,
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert("预定成功！");
+                    location.reload();
+                } else {
+                    alert("预定失败：" + data.message);
+                }
+            })
+            .catch(err => {
+                alert("请求出错：" + err);
+            });
+        });
+    });
+});
+    </script>
+</body>
+</html>

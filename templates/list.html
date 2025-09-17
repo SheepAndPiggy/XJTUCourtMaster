@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>预定界面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 90%;
+            margin: 50px auto;
+        }
+
+        h2 {
+            text-align: center;
+            color: #007bff;
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #e0f0ff;
+            color: #333;
+        }
+
+        tr:hover {
+            background-color: #f1faff;
+        }
+
+        .status-success {
+            color: green;
+            font-weight: bold;
+        }
+
+        .status-fail {
+            color: red;
+            font-weight: bold;
+        }
+
+        .status-listening {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .btn-refresh, .btn-return, .btn-cancel {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-refresh {
+            display: block;
+            width: 120px;
+            margin: 20px auto;
+            background-color: #007bff;
+            color: #fff;
+        }
+
+        .btn-refresh:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-return {
+            background-color: #5bc0de;
+            color: #fff;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+
+        .btn-return:hover {
+            background-color: #31b0d5;
+        }
+
+        .btn-cancel {
+            background-color: #d9534f;
+            color: #fff;
+        }
+
+        .btn-cancel:hover {
+            background-color: #c9302c;
+        }
+    </style>
+</head>
+<body>
+    <button class="btn-return" onclick="window.history.back()">返回</button>
+
+    <div class="container">
+        <h2>我的预定场次</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>场馆名称</th>
+                    <th>场地名称</th>
+                    <th>日期</th>
+                    <th>时间</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for booking in bookings %}
+                <tr>
+                    <td>{{ booking.field_name }}</td>
+                    <td>{{ booking.name }}</td>
+                    <td>{{ booking.date }}</td>
+                    <td>{{ booking.time }}</td>
+                    <td class="
+                        {% if booking.status == '成功' %}status-success{% endif %}
+                        {% if booking.status == '失败' %}status-fail{% endif %}
+                        {% if booking.status == '正在监听' %}status-listening{% endif %}
+                    ">{{ booking.status }}</td>
+                    <td>
+                        <button class="btn-cancel" onclick="cancelBooking('{{ booking.order_id }}')">取消</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <button class="btn-refresh" onclick="location.reload()">刷新页面</button>
+    </div>
+
+    <script>
+        function cancelBooking(bookingId) {
+            if(confirm("是否取消该预定？")) {
+                fetch("/cancel_booking", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({order_id: bookingId})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if(data.success) {
+                        alert("取消成功！");
+                        location.reload();
+                    } else {
+                        alert("取消失败：" + data.message);
+                    }
+                })
+                .catch(err => {
+                    alert("请求出错：" + err);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
