@@ -255,11 +255,16 @@ class PayScheduler:
         self.jobs = {}  # 保存任务信息
 
     def schedule_pay(self, order_id, schedule_time, date, field_id, stock_detail, tot_data):
+        # 使用 cron 表达式，设定每天的 08:40:00 执行任务
         run_time = datetime.strptime(schedule_time, "%Y-%m-%d %H:%M:%S")
+
+        # 在每天的 08:40:00 执行
         job = self.scheduler.add_job(
             self.session.pay_field,
-            'date',
-            run_date=run_time,
+            'cron',  # 使用 cron 触发器
+            hour=run_time.hour,
+            minute=run_time.minute,
+            second=run_time.second,
             args=[date, field_id, stock_detail]
         )
         self.jobs[str(order_id)] = [job, tot_data]
