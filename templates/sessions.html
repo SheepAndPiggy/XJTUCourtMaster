@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}场次管理 - XJTUCourtMaster{% endblock %}
+
+{% block head_extra %}
+<style>
+  .badge {
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; letter-spacing:.2px;
+    padding:6px 8px; border-radius:10px; border:1px solid rgba(255,255,255,.08);
+  }
+  .b-mode-listen { background: rgba(6,182,212,.14); border-color: rgba(6,182,212,.35); }   /* 监听 */
+  .b-mode-book   { background: rgba(132,204,22,.12); border-color: rgba(132,204,22,.35); } /* 预订 */
+  .b-sta-success { background: rgba(22,163,74,.14);  border-color: rgba(22,163,74,.35); }  /* 成功 */
+  .b-sta-failed  { background: rgba(239,68,68,.14);  border-color: rgba(239,68,68,.35); }  /* 失败 */
+  .b-sta-listen  { background: rgba(59,130,246,.14); border-color: rgba(59,130,246,.35); } /* 正在监听 */
+  .td-actions { white-space: nowrap; }
+  .btn-del { padding:6px 10px; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <div class="page-title">📋 场次管理</div>
+    <div class="page-sub">查看与管理近期任务</div>
+  </div>
+  <!-- 已按要求移除“新增/编辑”入口，仅保留展示与删除 -->
+</div>
+{% endblock %}
+
+{% block content %}
+<table style="width:100%; border-collapse: collapse;">
+  <thead>
+    <tr style="text-align:left; border-bottom:1px solid var(--border);">
+      <th style="padding:10px 8px; width:70px;">ID</th>
+      <th style="padding:10px 8px;">日期</th>
+      <th style="padding:10px 8px;">场馆名称</th>
+      <th style="padding:10px 8px;">模式</th>
+      <th style="padding:10px 8px;">状态</th>
+      <th style="padding:10px 8px; width:120px;">操作</th>
+    </tr>
+  </thead>
+  <tbody>
+  {# 注意：这里显示的 ID 使用 loop.index 保证 1,2,3… 顺序 #}
+  {% for s in sessions %}
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:10px 8px;">{{ loop.index }}</td>
+      <td style="padding:10px 8px;">{{ s.date }}</td>
+      <td style="padding:10px 8px;">{{ s.venue_name }}</td>
+      <td style="padding:10px 8px;">
+        {% if s.mode == 'listen' %}
+          <span class="badge b-mode-listen">监听</span>
+        {% else %}
+          <span class="badge b-mode-book">预订</span>
+        {% endif %}
+      </td>
+      <td style="padding:10px 8px;">
+        {% if s.status == 'success' %}
+          <span class="badge b-sta-success">成功</span>
+        {% elif s.status == 'failed' %}
+          <span class="badge b-sta-failed">失败</span>
+        {% else %}
+          <span class="badge b-sta-listen">正在监听</span>
+        {% endif %}
+      </td>
+      <td class="td-actions" style="padding:10px 8px;">
+        <form method="post" action="{{ url_for('task_delete', task_id=s.id) }}" style="display:inline;">
+          {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>{% endif %}
+          <button class="btn btn-danger btn-del" type="submit" onclick="return confirm('确认删除该任务？');">删除</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr>
+      <td colspan="8" style="padding:12px 8px;">
+        <div class="flash info">暂无任务。</div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}登录 - XJTUCourtMaster{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+    <div>
+        <div class="page-title">登录</div>
+        <div class="page-sub">移动交大APP</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" style="display:flex; flex-direction:column; gap:15px; max-width:400px; margin:0 auto">
+    <input name="username" placeholder="输入你的账号"
+           style="padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0a1526; color:var(--text);" />
+    <input name="password" type="password" placeholder="输入你的密码"
+           style="padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0a1526; color:var(--text);" />
+    <button class="btn" type="submit" style="padding:10px 12px; border-radius:10px;">登录</button>
+</form>
+{% endblock %}

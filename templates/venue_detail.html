@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+{% block title %}{{ venue.name }} - 详情 - XJTUCourtMaster{% endblock %}
+
+{% block head_extra %}
+<style>
+    .hero{
+        display:grid; grid-template-columns:320px 1fr; gap:18px; margin-bottom:16px;
+    }
+    .hero img{
+        width:100%; height:220px; object-fit:cover; border-radius:16px; border:1px solid var(--border);
+        background:#0a1526;
+    }
+    .info{
+        display:flex; flex-direction:column; gap:10px; padding:12px 14px; border-radius:16px;
+        background: var(--card); border:1px solid var(--border);
+    }
+    .badges{ display:flex; flex-wrap:wrap; gap:8px; }
+    .badge{
+        display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700;
+        padding:6px 8px; border-radius:10px; border:1px solid rgba(255,255,255,.08);
+        background: linear-gradient(180deg, rgba(6,182,212,.14), rgba(132,204,22,.12));
+    }
+    .venue-title{ font-weight:800; font-size:22px; letter-spacing:.2px }
+    .venue-note{ color:var(--muted); }
+
+    .controls{
+        display:flex; align-items:center; gap:10px; margin: 10px 0 14px;
+    }
+    .date-input{
+        padding:10px 12px; border-radius:12px; border:1px solid var(--border);
+        background:#0a1526; color:var(--text); outline:none;
+    }
+    .legend{ display:flex; align-items:center; gap:10px; margin-left:auto; }
+    .dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+    .dot.avail{ background:#16a34a; }
+    .dot.occ{ background:#ef4444; }
+    .dot.closed{ background:#6b7280; }
+    .dot.sel{ background:#06b6d4; }
+
+    .grid-wrap{
+        border:1px solid var(--border); border-radius:16px; overflow:auto; background: var(--card);
+    }
+    .grid{
+        --time-col: 120px;
+        min-width: 640px;
+        display:grid;
+        grid-auto-rows: minmax(56px, auto);
+    }
+    .grid-header{ background: rgba(6,182,212,.10); position: sticky; top: 0; z-index: 2; }
+    .cell{ padding:8px 10px; border-bottom:1px solid var(--border); border-right:1px solid var(--border); }
+    .cell.time{ position: sticky; left: 0; z-index: 1; background: rgba(8,14,26,.85); width: var(--time-col); }
+    .cell.h0{ font-weight:800; }
+    .cell:last-child{ border-right:none; }
+
+    .slot{
+        height:100%; display:flex; flex-direction:column; justify-content:center; gap:6px;
+        border-radius:10px; padding:6px 8px; cursor:pointer; user-select:none;
+        border:1px solid rgba(255,255,255,.06); transition: transform .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .slot:hover{ transform: translateY(-1px); }
+    .slot .price{ font-weight:800; }
+    .slot .status{ font-size:12px; color:var(--muted) }
+    .slot.available{ background: rgba(22,163,74,.10); }
+    .slot.occupied{ background: rgba(239,68,68,.10); cursor:not-allowed; opacity:.75; }
+    .slot.closed{ background: rgba(107,114,128,.12); cursor:not-allowed; opacity:.75; }
+    .slot.selected{ background: rgba(6,182,212,.15); border-color: rgba(6,182,212,.45); box-shadow: 0 0 0 2px rgba(6,182,212,.20) inset; }
+
+    .skeleton{ position:relative; overflow:hidden; background: rgba(255,255,255,.05); }
+    .skeleton::after{
+        content:""; position:absolute; inset:0; background:
+            linear-gradient(90deg, transparent 0%, rgba(255,255,255,.08) 50%, transparent 100%);
+        transform: translateX(-100%); animation: shimmer 1.2s infinite;
+    }
+    @keyframes shimmer{ 100%{ transform: translateX(100%); } }
+
+    .summary{ margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .summary-list{ display:flex; flex-wrap:wrap; gap:8px; }
+    .chip{
+        font-size:12px; padding:6px 8px; border-radius:10px; background: rgba(6,182,212,.12);
+        border:1px solid rgba(6,182,212,.35);
+    }
+
+    /* MODAL: 弹窗样式 */
+    .modal-backdrop{
+        position: fixed; inset: 0; background: rgba(0,0,0,.45);
+        display:none; align-items:center; justify-content:center; z-index: 60;
+    }
+    .modal{
+        width:min(760px, 92vw); background: var(--card);
+        border:1px solid var(--border); border-radius:16px; box-shadow: var(--shadow);
+    }
+    .modal-header{
+        display:flex; align-items:center; justify-content:space-between;
+        padding:12px 14px; border-bottom:1px solid var(--border);
+    }
+    .modal-title{ font-weight:800; }
+    .modal-body{ padding:14px; display:flex; flex-direction:column; gap:12px; }
+    .modal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:10px; padding: 0 14px 14px; }
+
+    .tabs{ display:flex; gap:8px; }
+    .tab-btn{
+        padding:8px 10px; border-radius:10px; border:1px solid var(--border);
+        background: rgba(255,255,255,.04); cursor:pointer; font-weight:700;
+    }
+    .tab-btn.active{ background: linear-gradient(180deg, rgba(6,182,212,.18), rgba(132,204,22,.14)); border-color: rgba(6,182,212,.35); }
+
+    .panel{ display:none; gap:10px; }
+    .panel.active{ display:flex; flex-direction:column; }
+
+    .form-row{ display:flex; gap:10px; }
+    .input, .select{
+        flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--border);
+        background:#0a1526; color:var(--text); outline:none;
+    }
+    .muted{ color:var(--muted); font-size:12px; }
+
+    .list-empty{
+        border:1px dashed var(--border); border-radius:12px; padding:10px 12px;
+        background: rgba(255,255,255,.03);
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+    <div>
+        <div class="page-title">🏟️ {{ venue.name }}</div>
+        <div class="page-sub">场馆详情与预约</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <img
+            src="{{ venue.image or url_for('static', filename='placeholder.jpg') }}"
+            alt="{{ venue.name }} 图片"
+            loading="lazy" decoding="async"
+            onerror="if(!this.dataset.fallback){this.dataset.fallback=1;this.src='{{ url_for('static', filename='placeholder.jpg') }}'}">
+
+    <div class="info">
+        <div class="venue-title">{{ venue.name }}</div>
+        {% if venue.memo %}<div class="venue-note">{{ venue.memo }}</div>{% endif %}
+        <div class="badges">
+            <span class="badge">可提前预约 {{ venue.advanceday }} 天</span>
+            <span class="badge">最多预约 {{ venue.advancenum }} 场</span>
+            {% if venue.address %}<span class="badge">📍 {{ venue.address }}</span>{% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="controls">
+    <button class="btn" id="prevDay">前一天</button>
+    <input id="dateInput" class="date-input" type="date" value="{{ current_date }}">
+    <button class="btn" id="nextDay">后一天</button>
+
+    <div class="legend">
+        <span class="dot avail"></span><span style="font-size:12px;color:var(--muted)">可约</span>
+        <span class="dot occ"></span><span style="font-size:12px;color:var(--muted)">已占用</span>
+        <span class="dot closed"></span><span style="font-size:12px;color:var(--muted)">暂停</span>
+        <span class="dot sel"></span><span style="font-size:12px;color:var(--muted)">已选择</span>
+    </div>
+</div>
+
+<div class="grid-wrap">
+    <div id="grid" class="grid" aria-live="polite">
+        <!-- 初始骨架 -->
+        <div class="cell h0 skeleton" style="grid-column:1;"></div>
+        {% for i in range(1,5) %}
+        <div class="cell h0 skeleton"></div>
+        {% endfor %}
+        {% for _ in range(8) %}
+        <div class="cell time skeleton" style="width:120px"></div>
+        {% for _ in range(4) %}
+        <div class="cell skeleton"></div>
+        {% endfor %}
+        {% endfor %}
+    </div>
+</div>
+
+<div class="summary">
+    <div class="summary-list" id="summaryList"></div>
+    <div>
+        <button class="btn" id="clearSel">清空选择</button>
+        <button class="btn" id="goNext">下一步</button>
+    </div>
+</div>
+
+<!-- MODAL: 下一步弹窗 -->
+<div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-header">
+            <div class="modal-title" id="modalTitle">确认与提交</div>
+            <button class="btn btn-danger" id="modalClose" aria-label="关闭">关闭</button>
+        </div>
+        <div class="modal-body">
+            <!-- 已选择预览（允许为空） -->
+            <div id="selPreview"></div>
+
+            <!-- Tab 切换 -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="listen">全局监听模式</button>
+                <button class="tab-btn" data-tab="book">预订模式</button>
+            </div>
+
+            <!-- Panel: 全局监听 -->
+            <div id="panel-listen" class="panel active">
+                <div class="form-row">
+                    <input class="input" id="listenDate" type="date" />
+                    <input class="input" id="listenNum" type="number" min="1" step="1" placeholder="想要预定的场次数量（num）" />
+                </div>
+                <div class="muted">此模式会监听 <strong>场馆ID</strong>、<strong>日期</strong>和<strong>数量</strong>，一旦有空位满足数量即触发。</div>
+            </div>
+
+            <!-- Panel: 预订 -->
+            <div id="panel-book" class="panel">
+                <div class="form-row">
+                    <input class="input" id="bookDate" type="date" />
+                    <input class="input" id="bookVenueId" type="text" placeholder="场馆ID（自动填充）" />
+                </div>
+                <div class="form-row">
+                    <select class="select" id="bookFromSelected">
+                        <option value="">（可从已选择的槽位中选择，或手动填写）</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <input class="input" id="bookCourtId" type="text" placeholder="场地ID（court_id）" />
+                    <input class="input" id="bookStockId" type="text" placeholder="库存ID（stock_id）" />
+                </div>
+                <div class="muted">若已在上方网格选择时段，可从下拉框带入 <code>court_id</code> 与 <code>stock_id</code>；否则也可直接手填。</div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" id="submitListen">提交监听</button>
+            <button class="btn" id="submitBook">提交预订</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function(){
+        const venueId = {{ venue.id|int }};
+        const apiSchedule = "{{ url_for('api_venue_schedule', venue_id=venue.id) }}";
+        const apiListen   = "{{ url_for('api_venue_listen', venue_id=venue.id) }}";
+        const apiBook     = "{{ url_for('api_venue_book', venue_id=venue.id) }}";
+
+        const gridEl = document.getElementById('grid');
+        const dateInput = document.getElementById('dateInput');
+        const prevBtn = document.getElementById('prevDay');
+        const nextBtn = document.getElementById('nextDay');
+        const summaryList = document.getElementById('summaryList');
+        const clearSel = document.getElementById('clearSel');
+        const goNext = document.getElementById('goNext');
+
+        // ===== Modal
+        const modalBackdrop = document.getElementById('modalBackdrop');
+        const modalClose = document.getElementById('modalClose');
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const panelListen = document.getElementById('panel-listen');
+        const panelBook = document.getElementById('panel-book');
+
+        const listenDate = document.getElementById('listenDate');
+        const listenNum = document.getElementById('listenNum');
+
+        const bookDate = document.getElementById('bookDate');
+        const bookVenueId = document.getElementById('bookVenueId');
+        const bookFromSelected = document.getElementById('bookFromSelected');
+        const bookCourtId = document.getElementById('bookCourtId');
+        const bookStockId = document.getElementById('bookStockId');
+
+        const submitListen = document.getElementById('submitListen');
+        const submitBook = document.getElementById('submitBook');
+        const selPreview = document.getElementById('selPreview');
+
+        /** 当前加载的数据，用于拿 stock_id 等 */
+        let currentData = null;
+
+        /** 已选择 key 集合 和 详情映射 */
+        const selectedKeys = new Set(); // "courtId|timeId"
+        const selectedMeta = new Map(); // key -> {courtId, timeId, stockId, label, price}
+
+        function formatCNY(v){ return '¥' + Number(v).toFixed(0); }
+        function ymd(date){ const z=n=>String(n).padStart(2,'0'); return `${date.getFullYear()}-${z(date.getMonth()+1)}-${z(date.getDate())}`; }
+        function parseYMD(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y, m-1, d); }
+
+        function setURLDateParam(dateStr){
+            try{ const u=new URL(window.location.href); u.searchParams.set('date', dateStr); history.replaceState({},'',u.toString()); }catch(e){}
+        }
+
+        prevBtn.addEventListener('click', ()=>{
+            const d = parseYMD(dateInput.value || ymd(new Date()));
+            d.setDate(d.getDate()-1); dateInput.value = ymd(d); loadSchedule(dateInput.value);
+        });
+        nextBtn.addEventListener('click', ()=>{
+            const d = parseYMD(dateInput.value || ymd(new Date()));
+            d.setDate(d.getDate()+1); dateInput.value = ymd(d); loadSchedule(dateInput.value);
+        });
+        dateInput.addEventListener('change', ()=> loadSchedule(dateInput.value));
+
+        clearSel.addEventListener('click', ()=>{
+            selectedKeys.clear(); selectedMeta.clear();
+            gridEl.querySelectorAll('.slot.selected').forEach(el=> el.classList.remove('selected'));
+            renderSummary();
+        });
+
+        goNext.addEventListener('click', ()=>{
+            // 打开弹窗。即使没选择也打开。
+            openModal();
+        });
+
+        function showSkeleton(cols = 4, rows = 8){
+            gridEl.innerHTML = '';
+            const h0 = document.createElement('div'); h0.className='cell h0 skeleton'; gridEl.appendChild(h0);
+            for(let c=0;c<cols;c++){ const d=document.createElement('div'); d.className='cell h0 skeleton'; gridEl.appendChild(d); }
+            for(let r=0;r<rows;r++){
+                const t=document.createElement('div'); t.className='cell time skeleton'; gridEl.appendChild(t);
+                for(let c=0;c<cols;c++){ const d=document.createElement('div'); d.className='cell skeleton'; gridEl.appendChild(d); }
+            }
+        }
+
+        function renderSummary(){
+            summaryList.innerHTML = '';
+            selectedKeys.forEach(key=>{
+                const m = selectedMeta.get(key);
+                const chip = document.createElement('span');
+                chip.className='chip';
+                const txt = `${m.timeId} · ${m.courtId}${m.price!=null?(' · '+formatCNY(m.price)):""}`;
+                chip.textContent = txt;
+                summaryList.appendChild(chip);
+            });
+        }
+
+        function renderGrid(data){
+            currentData = data;
+            const courts = data.courts || [];
+            const times  = data.times  || [];
+            const cells  = data.cells  || {};
+
+            gridEl.style.gridTemplateColumns = `120px repeat(${courts.length}, minmax(140px, 1fr))`;
+            gridEl.innerHTML = '';
+
+            const corner = document.createElement('div'); corner.className='cell h0 grid-header'; gridEl.appendChild(corner);
+            for(const c of courts){ const h=document.createElement('div'); h.className='cell h0 grid-header'; h.textContent=c.name||c.id; gridEl.appendChild(h); }
+
+            for(const t of times){
+                const timeCell=document.createElement('div'); timeCell.className='cell time'; timeCell.textContent=t.label||t.id; gridEl.appendChild(timeCell);
+
+                for(const c of courts){
+                    const key = `${c.id}|${t.id}`;
+                    const cellData = cells[key] || {price:null, status:'closed', stock_id:null};
+                    const cell = document.createElement('div'); cell.className='cell';
+                    const btn = document.createElement('div'); btn.className='slot';
+                    const status = (cellData.status||'closed').toLowerCase();
+                    btn.classList.add(status);
+                    if(selectedKeys.has(key)) btn.classList.add('selected');
+
+                    btn.dataset.courtId = c.id;
+                    btn.dataset.timeId  = t.id;
+                    if(cellData.stock_id) btn.dataset.stockId = cellData.stock_id;
+
+                    btn.innerHTML = `
+          <div class="price">${cellData.price != null ? formatCNY(cellData.price) : '-'}</div>
+          <div class="status">${
+                        status === 'available' ? '可约' :
+                            status === 'occupied'  ? '已占用' : '暂停'
+                    }</div>
+        `;
+
+                    if(status === 'available'){
+                        btn.addEventListener('click', ()=>{
+                            const meta = { courtId:c.id, timeId:t.id, stockId:cellData.stock_id||'', price:cellData.price };
+                            if(selectedKeys.has(key)){
+                                selectedKeys.delete(key); selectedMeta.delete(key);
+                                btn.classList.remove('selected');
+                            }else{
+                                selectedKeys.add(key); selectedMeta.set(key, meta);
+                                btn.classList.add('selected');
+                            }
+                            renderSummary();
+                        });
+                    }else{
+                        btn.title = status === 'occupied' ? '该时段已占用' : '该时段暂停开放';
+                    }
+                    cell.appendChild(btn); gridEl.appendChild(cell);
+                }
+            }
+            renderSummary();
+        }
+
+        async function loadSchedule(dateStr){
+            try{
+                setURLDateParam(dateStr);
+                selectedKeys.clear(); selectedMeta.clear(); renderSummary();
+                showSkeleton();
+                const url = `${apiSchedule}?date=${encodeURIComponent(dateStr)}`;
+                const res = await fetch(url, { headers:{'Accept':'application/json'} });
+                if(!res.ok) throw new Error('网络错误：' + res.status);
+                const data = await res.json();
+                renderGrid(data);
+            }catch(err){
+                console.error(err);
+                gridEl.innerHTML = `<div class="cell" style="grid-column:1/-1; padding:16px;">
+        <div class="flash error">加载失败：${(err && err.message) || '未知错误'}</div>
+      </div>`;
+            }
+        }
+
+        // ===== Modal 逻辑
+        function openModal(){
+            // 预览已选择（允许为空）
+            if(selectedKeys.size === 0){
+                selPreview.innerHTML = `<div class="list-empty">当前未选择任何场次。你仍可：
+        <ul style="margin:6px 0 0 16px;">
+          <li>使用「全局监听模式」提交 <code>num</code> 进行监控</li>
+          <li>切换到「预订模式」并手动填写 <code>court_id</code> / <code>stock_id</code></li>
+        </ul></div>`;
+            }else{
+                const list = Array.from(selectedKeys).map(k=>{
+                    const m = selectedMeta.get(k);
+                    return `<span class="chip">${m.timeId} · ${m.courtId}${m.price!=null?(' · '+formatCNY(m.price)):""}</span>`;
+                }).join(' ');
+                selPreview.innerHTML = `<div class="summary-list">${list}</div>`;
+            }
+
+            // 初始化两种模式的默认值
+            const d = dateInput.value || (new Date()).toISOString().slice(0,10);
+            listenDate.value = d;
+            if(!listenNum.value) listenNum.value = 1;
+
+            bookDate.value = d;
+            bookVenueId.value = String(venueId);
+
+            // 从已选择填充下拉
+            bookFromSelected.innerHTML = `<option value="">（可从已选择的槽位中选择，或手动填写）</option>`;
+            selectedKeys.forEach(key=>{
+                const m = selectedMeta.get(key);
+                const label = `${m.timeId} · ${m.courtId}${m.price!=null?(' · '+formatCNY(m.price)):""}`;
+                const v = JSON.stringify({court_id:m.courtId, stock_id:m.stockId||''});
+                const opt = document.createElement('option');
+                opt.value = v; opt.textContent = label; bookFromSelected.appendChild(opt);
+            });
+
+            modalBackdrop.style.display = 'flex';
+            modalBackdrop.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeModal(){
+            modalBackdrop.style.display = 'none';
+            modalBackdrop.setAttribute('aria-hidden', 'true');
+        }
+
+        modalClose.addEventListener('click', closeModal);
+        modalBackdrop.addEventListener('click', (e)=>{ if(e.target === modalBackdrop) closeModal(); });
+        document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(); });
+
+        // tab 切换
+        tabBtns.forEach(btn=>{
+            btn.addEventListener('click', ()=>{
+                tabBtns.forEach(b=>b.classList.remove('active'));
+                btn.classList.add('active');
+                const tab = btn.dataset.tab;
+                panelListen.classList.toggle('active', tab==='listen');
+                panelBook.classList.toggle('active', tab==='book');
+            });
+        });
+
+        // 下拉选择填充 court_id 和 stock_id
+        bookFromSelected.addEventListener('change', ()=>{
+            const v = bookFromSelected.value;
+            if(!v){ bookCourtId.value=''; bookStockId.value=''; return; }
+            try{
+                const obj = JSON.parse(v);
+                bookCourtId.value = obj.court_id || '';
+                bookStockId.value = obj.stock_id || '';
+            }catch(e){}
+        });
+
+        // 提交：全局监听
+        submitListen.addEventListener('click', async ()=>{
+            const payload = {
+                venue_id: venueId,
+                date: listenDate.value || (new Date()).toISOString().slice(0,10),
+                num: Number(listenNum.value || 1)
+            };
+            if(!payload.num || payload.num < 1){ alert('数量 num 必须 ≥ 1'); return; }
+
+            try{
+                const res = await fetch(apiListen, {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json', 'Accept':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error || res.statusText);
+                alert('监听提交成功！ID: ' + data.watch_id);
+                closeModal();
+            }catch(err){
+                alert('提交失败：' + (err && err.message || '未知错误'));
+            }
+        });
+
+        // 提交：预订模式
+        submitBook.addEventListener('click', async ()=>{
+            const payload = {
+                venue_id: venueId,
+                date: bookDate.value || (new Date()).toISOString().slice(0,10),
+                court_id: (bookCourtId.value || '').trim(),
+                stock_id: (bookStockId.value || '').trim()
+            };
+            if(!payload.court_id || !payload.stock_id){
+                alert('请填写完整 court_id 与 stock_id（可从下拉选择或手动填写）');
+                return;
+            }
+            try{
+                const res = await fetch(apiBook, {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json', 'Accept':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error || res.statusText);
+                alert('预订提交成功！订单号: ' + data.order_id);
+                closeModal();
+            }catch(err){
+                alert('提交失败：' + (err && err.message || '未知错误'));
+            }
+        });
+
+        // 初始化
+        (function init(){
+            const params = new URLSearchParams(location.search);
+            const d = params.get('date');
+            if(d) dateInput.value = d;
+            if(!dateInput.value) dateInput.value = (new Date()).toISOString().slice(0,10);
+            loadSchedule(dateInput.value);
+        })();
+    })();
+</script>
+{% endblock %}

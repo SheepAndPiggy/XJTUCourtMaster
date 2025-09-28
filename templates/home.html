@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}主页 - XJTUCourtMaster{% endblock %}
+
+{% block head_extra %}
+<style>
+    /* 搜索区 */
+    .search-wrap{
+        display:flex; gap:10px; align-items:center; margin-bottom:16px;
+    }
+    .search-input{
+        flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--border);
+        background:#0a1526; color:var(--text); outline:none;
+        transition: box-shadow .2s ease, border-color .2s ease;
+    }
+    .search-input:focus{ border-color: rgba(6,182,212,.45); box-shadow: 0 0 0 3px rgba(6,182,212,.15); }
+
+    /* 瀑布流容器（纯 CSS columns） */
+    .masonry{
+        column-gap:16px;
+    }
+    @media (max-width:639px){ .masonry{ columns:1; } }
+    @media (min-width:640px) and (max-width:1023px){ .masonry{ columns:2; } }
+    @media (min-width:1024px){ .masonry{ columns:3; } }
+
+    /* 卡片 */
+    .venue-card{
+        break-inside: avoid; display:inline-block; width:100%;
+        background: var(--card); border:1px solid var(--border);
+        border-radius:16px; overflow:hidden; margin:0 0 16px;
+        text-decoration:none; color:var(--text);
+        box-shadow: var(--shadow); transform: translateY(0); transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .venue-card:hover{
+        transform: translateY(-2px);
+        border-color: rgba(6,182,212,.35);
+        box-shadow: 0 12px 32px rgba(6,182,212,.08), var(--shadow);
+    }
+    .venue-cover{
+        width:100%; aspect-ratio: 16/9; object-fit: cover; background:#0a1526;
+    }
+    .venue-body{ padding:12px 14px 14px; }
+    .venue-title{ font-weight:800; font-size:18px; margin-bottom:6px; letter-spacing:.2px; }
+    .venue-note{ color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:10px; }
+    .meta{ display:flex; flex-wrap:wrap; gap:8px; }
+    .badge{
+        display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; letter-spacing:.2px;
+        padding:6px 8px; border-radius:10px; border:1px solid rgba(255,255,255,.08);
+        background: linear-gradient(180deg, rgba(6,182,212,.14), rgba(132,204,22,.12));
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+    <div>
+        <div class="page-title">🏸 欢迎来到XJTUCourtMaster</div>
+        <div class="page-sub">从这里快速预约场地</div>
+    </div>
+    <div class="page-actions">
+        <a class="btn" href="{{ url_for('session_manage') }}">前往场次管理</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- 搜索框（GET 提交到主页），支持显示当前关键字与清空 -->
+<form class="search-wrap" method="get" action="{{ url_for('home') }}">
+    <input class="search-input" type="text" name="q"
+           value="{{ request.args.get('q','') }}" placeholder="搜索场馆名称或备注…" />
+    <button class="btn" type="submit">搜索</button>
+    {% if request.args.get('q') %}
+    <a class="btn" href="{{ url_for('home') }}">清空</a>
+    {% endif %}
+</form>
+
+<!-- 瀑布流卡片列表 -->
+<div class="masonry">
+    {% for v in venues %}
+    <a class="venue-card" href="{{ url_for('venue_detail', venue_id=(v.id | int)) }}" title="查看详情：{{ v.name }}">
+        <img class="venue-cover"
+             src="{{ v.image or url_for('static', filename='img/placeholder.png') }}"
+             alt="{{ v.name }} 场馆图片"
+             loading="lazy" decoding="async"
+             onerror="if(!this.dataset.fallback){this.dataset.fallback=1;this.src='{{ url_for('static', filename='placeholder.jpg') }}'}">
+
+        <div class="venue-body">
+            <div class="venue-title">{{ v.name }}</div>
+            {% if v.address %}<div class="venue-note">{{ v.address }}</div>{% endif %}
+            <div class="meta">
+                <span class="badge">可提前预约 {{ v.advanceday }} 天</span>
+                <span class="badge">最多预约 {{ v.advancenum }} 场</span>
+            </div>
+        </div>
+    </a>
+    {% else %}
+    <div class="flash info">未找到符合条件的场馆。</div>
+    {% endfor %}
+</div>
+{% endblock %}
