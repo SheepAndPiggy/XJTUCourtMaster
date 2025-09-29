@@ -164,7 +164,7 @@ def session_manage():
     tasks = []
     for num, key in enumerate(keys):
         if key.endswith("order"):
-            venue_id, date, stock_id, mode = key.split("/")
+            venue_id, date, field_id, stock_id, mode = key.split("/")
         else:
             venue_id, date, mode = key.split("/")
         mode = "listen" if mode == "monitor" else "book"

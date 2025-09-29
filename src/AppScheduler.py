@@ -111,7 +111,7 @@ class AppScheduler(BackgroundScheduler):
             else:
                 max_retry_ -= 1
             print(f"重试[{max_retry - max_retry_}]")
-        job_key = court_id + "/" + date + "/" + stock_id + "/" + "order"
+        job_key = court_id + "/" + date + "/" + field_id + "/" + stock_id + "/" + "order"
         self.user_order[job_key] = False
 
     def order_stock(self, date, court_id, field_id, stock_id, *, order_date=None):
@@ -129,7 +129,7 @@ class AppScheduler(BackgroundScheduler):
             order_date = datetime.strptime(order_date, '%Y-%m-%d %H:%M:%S')
         flash(f"订单将在{order_date}执行", "info")
 
-        job_key = court_id + "/" + date + "/" + stock_id + "/" + "order"
+        job_key = court_id + "/" + date + "/" + field_id + "/" + stock_id + "/" + "order"
         job = self.add_job(
             partial(self._order_stock, date=date, court_id=court_id, field_id=field_id, stock_id=stock_id),
             DateTrigger(run_date=order_date),
