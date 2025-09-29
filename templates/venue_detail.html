@@ -349,16 +349,17 @@
 
                 for(const c of courts){
                     const key = `${c.id}|${t.id}`;
-                    const cellData = cells[key] || {price:null, status:'closed', stock_id:null};
+                    const cellData = cells[key] || {price:null, status:'closed', stock_id:null, court_id:null};
                     const cell = document.createElement('div'); cell.className='cell';
                     const btn = document.createElement('div'); btn.className='slot';
                     const status = (cellData.status||'closed').toLowerCase();
                     btn.classList.add(status);
                     if(selectedKeys.has(key)) btn.classList.add('selected');
 
-                    btn.dataset.courtId = c.id;
+                    btn.dataset.courtName = c.id;
                     btn.dataset.timeId  = t.id;
                     if(cellData.stock_id) btn.dataset.stockId = cellData.stock_id;
+                    if(cellData.court_id) btn.dataset.courtId = cellData.court_id;
 
                     btn.innerHTML = `
           <div class="price">${cellData.price != null ? formatCNY(cellData.price) : '-'}</div>
@@ -370,7 +371,7 @@
 
                     if(status === 'available'){
                         btn.addEventListener('click', ()=>{
-                            const meta = { courtId:c.id, timeId:t.id, stockId:cellData.stock_id||'', price:cellData.price };
+                            const meta = { courtId:cellData.court_id, timeId:t.id, stockId:cellData.stock_id||'', price:cellData.price, courtName:c.id };
                             if(selectedKeys.has(key)){
                                 selectedKeys.delete(key); selectedMeta.delete(key);
                                 btn.classList.remove('selected');

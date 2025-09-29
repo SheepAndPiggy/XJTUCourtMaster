@@ -124,7 +124,7 @@ class AppScheduler(BackgroundScheduler):
         if order_date is None:
             date_obj = datetime.strptime(date, '%Y-%m-%d').date()
             n_days_ago = date_obj - timedelta(days=court.advanceday)
-            order_date = datetime.combine(n_days_ago, datetime.strptime('08:40:01', '%H:%M:%S').time())
+            order_date = datetime.combine(n_days_ago, datetime.strptime('10:22:01', '%H:%M:%S').time())
         else:
             order_date = datetime.strptime(order_date, '%Y-%m-%d %H:%M:%S')
         flash(f"订单将在{order_date}执行", "info")

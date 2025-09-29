@@ -31,7 +31,7 @@ def home():
         active_page="home",
         username=current_username(),
         venues=venues,
-        logout_url=url_for("logout"),   # 覆盖 base.html 中的默认 auth.logout
+        logout_url=url_for("logout"),
     )
 
 
@@ -48,11 +48,6 @@ def venue_detail(venue_id:int):
     return render_template("venue_detail.html", venue=v,
                            current_date=date.today().isoformat(),
                            username=current_username())
-
-
-def _mk_stock_id(venue_id:int, ymd:str, court_id:str, time_label:str) -> str:
-    code = re.sub(r'[^0-9-]', '', time_label.replace(':',''))
-    return f"S{venue_id}-{ymd}-{court_id}-{code}"
 
 
 @app.get("/api/venues/<int:venue_id>/schedule")
@@ -89,10 +84,14 @@ def api_venue_schedule(venue_id:int):
                 if f.sname == c["name"] and f.time_no == t["label"]:
                     status = f.status
                     price = f.price
+                    stock_id = f.stockid
+                    field_id = f.id
                     break
             else:
                 status = -1
                 price = -1
+                stock_id = -1
+                field_id = -1
             if status <= 0:
                 status = "closed"
             elif status == 2:
@@ -100,7 +99,8 @@ def api_venue_schedule(venue_id:int):
             else:
                 status = "available"
             cells[key] = {"price": price, "status": status,
-                          "stock_id":  _mk_stock_id(venue_id, target.strftime("%Y%m%d"), c["id"], t["id"])}
+                          "stock_id":  stock_id,
+                          "court_id": field_id}
 
     return jsonify({
         "venue_id": venue_id,
