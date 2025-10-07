@@ -1,8 +1,184 @@
+import json
+import sqlite3
 import base64
 import random
 
-import cv2
+import requests
 import numpy as np
+import cv2
+
+
+class CaptchaDatabase:
+    CAPTCHA_COLS = [
+        "backgroundImage",
+        "sliderImage",
+        "backgroundImageWidth",
+        "backgroundImageHeight",
+        "sliderImageWidth",
+        "sliderImageHeight",
+        "data",
+    ]
+
+    @staticmethod
+    def get_captcha_data():
+        response = requests.get("http://202.117.17.144:8080/gen")
+        result = response.json()
+        return result
+
+    @staticmethod
+    def init_db(db_path: str = "captchas.db"):
+        sql = """
+        CREATE TABLE IF NOT EXISTS captchas (
+          id TEXT PRIMARY KEY,
+          backgroundImage TEXT,
+          sliderImage TEXT,
+          backgroundImageWidth INTEGER,
+          backgroundImageHeight INTEGER,
+          sliderImageWidth INTEGER,
+          sliderImageHeight INTEGER,
+          data TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_captchas_bg_wh
+          ON captchas (backgroundImageWidth, backgroundImageHeight);
+        CREATE INDEX IF NOT EXISTS idx_captchas_slider_wh
+          ON captchas (sliderImageWidth, sliderImageHeight);
+        """
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.executescript(sql)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _row_from_item(item: dict):
+        cid = item.get("id")
+        c = item.get("captcha", {}) or {}
+
+        # data 字段统一转为 JSON 文本（None 保持为 None）
+        data_val = c.get("data")
+        if data_val is not None and not isinstance(data_val, (str, bytes)):
+            data_val = json.dumps(data_val, ensure_ascii=False)
+
+        row = [
+            cid,
+            c.get("backgroundImage"),
+            c.get("sliderImage"),
+            c.get("backgroundImageWidth"),
+            c.get("backgroundImageHeight"),
+            c.get("sliderImageWidth"),
+            c.get("sliderImageHeight"),
+            data_val,
+        ]
+        return row
+
+    @classmethod
+    def insert_many(cls, items: list, db_path: str = "captchas.db"):
+        """
+        批量插入；当 id 冲突时不插入（忽略）。
+        """
+        if not items:
+            return 0
+
+        conn = sqlite3.connect(db_path)
+        try:
+            with conn:
+                sql = """
+                INSERT OR IGNORE INTO captchas (
+                  id, backgroundImage, sliderImage,
+                  backgroundImageWidth, backgroundImageHeight,
+                  sliderImageWidth, sliderImageHeight, data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """
+                rows = [cls._row_from_item(it) for it in items]
+                cur = conn.executemany(sql, rows)
+                return cur.rowcount
+        finally:
+            conn.close()
+
+    @staticmethod
+    def load_many(db_path: str = "captchas.db"):
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            with conn:
+                cur = conn.execute(f"SELECT * FROM captchas")
+                while True:
+                    rows = cur.fetchmany(100)
+                    if not rows:
+                        break
+                    for row in rows:
+                        yield row
+        finally:
+            conn.close()
+
+
+class CaptchaLoader:
+    @staticmethod
+    def _change_to_cv2(img):
+        img = img.split(",")[-1]
+        img_data = base64.b64decode(img)
+        np_arr = np.frombuffer(img_data, np.uint8)
+        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        return img
+
+    @staticmethod
+    def to_float(gray):
+        g = gray.astype(np.float32)
+        # 全局零均值/单位方差（可换成局部CLAHE）
+        g = (g - g.mean()) / (g.std() + 1e-6)
+        return g
+
+    @classmethod
+    def features(cls, gray, mode="grad"):
+        """把灰度图转成更稳健的特征图：raw / edge / grad"""
+        if mode == "raw":
+            return cls.to_float(gray)
+        if mode == "edge":
+            e = cv2.Canny(gray, 50, 150)
+            return cls.to_float(e)
+        if mode == "grad":
+            gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+            gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+            mag = cv2.magnitude(gx, gy)
+            return cls.to_float(mag)
+        raise ValueError("mode must be raw/edge/grad")
+
+    @classmethod
+    def find_slider_pos(cls, captcha_img, slider_img):
+        captcha_img = cls._change_to_cv2(captcha_img)
+        slider_img = cls._change_to_cv2(slider_img)
+
+        c_hsv = cv2.cvtColor(captcha_img, cv2.COLOR_BGR2HSV)
+        _, _, bg = cv2.split(c_hsv)
+
+        s_hsv = cv2.cvtColor(slider_img, cv2.COLOR_BGR2HSV)
+        _, _, sl = cv2.split(s_hsv)
+        mask = sl > 10
+        coords = np.column_stack(np.where(mask))
+        y_min, x_min = coords.min(axis=0)
+        y_max, x_max = coords.max(axis=0)
+        sl = sl[y_min:y_max + 1, x_min:x_max + 1]
+
+        bg = cls.features(bg)
+        sl = cls.features(sl)
+
+        res = cv2.matchTemplate(bg, sl, method=cv2.TM_CCOEFF_NORMED)
+        minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(res)
+        x, y = maxLoc
+        return x, x + sl.shape[1]
+
+    @classmethod
+    def show_captcha(cls, captcha_img, slider_img):
+        bx, hx = cls.find_slider_pos(captcha_img, slider_img)
+        captcha_img = cls._change_to_cv2(captcha_img)
+
+        h, w = captcha_img.shape[:2]
+        cv2.line(captcha_img, (bx, 0), (bx, h), (0, 0, 255), 2)
+        cv2.line(captcha_img, (hx, 0), (hx, h), (0, 0, 255), 2)
+        cv2.imshow("Captcha_S", captcha_img)
+
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
 
 class CaptchaHandler(object):
@@ -12,82 +188,11 @@ class CaptchaHandler(object):
         self.slider_image_width = captcha_json_data["sliderImageWidth"]
         self.slider_image_height = captcha_json_data["sliderImageHeight"]
 
-        background_image = self.base64_to_cv2(captcha_json_data["backgroundImage"])
-        slider_image = self.base64_to_cv2(captcha_json_data["sliderImage"])
-        self.background_image = cv2.resize(background_image, (self.background_image_width, self.background_image_height))
-        self.slider_image = cv2.resize(slider_image, (self.slider_image_width, self.slider_image_height))
-
-    @staticmethod
-    def base64_to_cv2(base64_str):
-        # 去掉前缀 "data:image/jpeg;base64,"
-        base64_data = base64_str.split(",")[1]
-        # 解码
-        img_data = base64.b64decode(base64_data)
-        # 转 numpy 数组
-        img_array = np.frombuffer(img_data, np.uint8)
-        # 解码成 OpenCV 图像
-        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)  # 彩色图
-        return img
-
-    def _show_image(self):
-        top_left, bottom_right = self.find_gap_position()
-
-        # 创建一个画布，高度取背景高度，宽度 = 滑块宽度 + 背景宽度
-        canvas = np.zeros((self.background_image_height, self.background_image_width + self.slider_image_width, 3), dtype=np.uint8)
-        canvas[0:self.slider_image_height, 0:self.slider_image_width] = self.slider_image
-        canvas[0:self.background_image_height, self.slider_image_width:self.slider_image_width + self.background_image_width] = self.background_image
-
-        top_left = (top_left[0] + self.slider_image_width, top_left[1])
-        bottom_right = (bottom_right[0] + self.slider_image_width, bottom_right[1])
-        cv2.rectangle(canvas, top_left, bottom_right, (0, 0, 255), 2)
-
-        cv2.imshow("Captcha Images", canvas)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-
-    def _cut_bg_img(self, margin=10):
-        # 预处理滑块：转灰度 + 二值化
-        slider_gray = cv2.cvtColor(self.slider_image, cv2.COLOR_BGR2GRAY)
-        _, slider_bin = cv2.threshold(slider_gray, 50, 255, cv2.THRESH_BINARY)
-
-        # 找到非黑色区域（即滑块缺口形状）
-        coords = cv2.findNonZero(slider_bin)
-        x, y, w, h = cv2.boundingRect(coords)
-
-        # 只取有效缺口形状区域
-        slider_crop = slider_gray[y:y + h, x:x + w]
-
-        # 裁剪背景图的对应水平区域
-        H, W = self.background_image.shape[:2]
-        y1 = max(y - margin, 0)
-        y2 = min(y + h + margin, H)
-        bg_crop = self.background_image[y1:y2, :]
-
-        return bg_crop, slider_crop
-
-    def find_gap_position(self):
-        bg_gray = cv2.cvtColor(self.background_image, cv2.COLOR_BGR2GRAY)
-        slider_gray = cv2.cvtColor(self.slider_image, cv2.COLOR_BGR2GRAY)
-
-        # 高斯滤波降噪
-        bg_gray = cv2.GaussianBlur(bg_gray, (5, 5), 0)
-        slider_gray = cv2.GaussianBlur(slider_gray, (5, 5), 0)
-
-        # 边缘检测（Canny 算法）
-        bg_edges = cv2.Canny(bg_gray, 100, 200)
-        slider_edges = cv2.Canny(slider_gray, 100, 200)
-
-        # 模板匹配
-        result = cv2.matchTemplate(bg_edges, slider_edges, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(result)
-        top_left = max_loc
-        bottom_right = (top_left[0] + slider_edges.shape[1], top_left[1] + slider_edges.shape[0])
-
-        return top_left, bottom_right
+        self.bx, self.hx = CaptchaLoader.find_slider_pos(captcha_json_data["backgroundImage"],
+                                                             captcha_json_data["sliderImage"])
 
     def get_track(self):
-        top_left, bottom_right = self.find_gap_position()
-        center_x = (top_left[0] + bottom_right[0]) // 2
+        center_x = (self.bx + self.hx) // 2
         distance = center_x - self.slider_image_width // 2
 
         distance = int(260 / self.background_image_width * distance)  # 缩放窗口宽度

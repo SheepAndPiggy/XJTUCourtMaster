@@ -72,7 +72,7 @@ def api_venue_schedule(venue_id:int):
     times = [{"id": t, "label": t} for t in ts[indexs]]
 
     cs = np.unique([f.sname for f in fields]).tolist()
-    cs_nums = [int(re.search("(\d+)", c).group(1)) for c in cs]
+    cs_nums = [int(re.search(r"(\d+)", c).group(1)) for c in cs]
     cs = sorted(cs, key=lambda c: cs_nums[cs.index(c)])
     courts = [{"id": c, "name": c} for c in cs]
 

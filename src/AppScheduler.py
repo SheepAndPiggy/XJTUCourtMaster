@@ -94,6 +94,7 @@ class AppScheduler(BackgroundScheduler):
         max_retry = 10
         max_retry_ = max_retry
         while max_retry_ > 0:
+            self.crawler.jump_to_app()  # 预订任务隔夜，SESSION必然过期，需要重新获取
             result, code = self.crawler.pay_field(court_id, field_id, stock_id)
             if code == '1':
                 job_key = court_id + "/" + date + "/" + stock_id + "/" + "order"
